@@ -2,6 +2,7 @@
 
 const {
   builders: {
+    breakParent,
     dedent,
     fill,
     group,
@@ -29,6 +30,8 @@ const {
   isVoid,
   isWhitespaceNode,
 } = require("./utils.js");
+
+const { inferParserByLanguage: inferParser } = require("../common/util.js");
 
 /**
  * @typedef {import("../document").Doc} Doc
@@ -192,6 +195,10 @@ function print(path, options, print) {
       return [node.key, "=", print("value")];
     }
     case "TextNode": {
+      if (path.parent.tag === "pre") {
+        return node.chars; // Don't format content in <pre>
+      }
+
       /* if `{{my-component}}` (or any text containing "{{")
        * makes it to the TextNode, it means it was escaped,
        * so let's print it escaped, ie.; `\{{my-component}}` */
@@ -796,7 +803,63 @@ function printBlockParams(node) {
   return ["as |", node.blockParams.join(" "), "|"];
 }
 
+function getCssParser(node, options) {
+  if (node.tag !== "style") {
+    return;
+  }
+
+  return inferParser(options, { language: "css" });
+}
+
+function getNodeContent(node, options) {
+  if (node.children.length === 0) {
+    return "";
+  }
+  return options.originalText.slice(
+    node.children.at(0).loc.start.offset,
+    node.children.at(-1).loc.end.offset,
+  );
+}
+
+function embed(path, options) {
+  const { node } = path;
+
+  if (node.type === "ElementNode") {
+    const parser = getCssParser(node, options);
+
+    // For now, we only support embedding CSS language (via `<style>` tags)
+    if (!parser) {
+      return;
+    }
+
+    return async (textToDoc, print) => {
+      const content = getNodeContent(node, options);
+      let isEmpty = /^\s*$/.test(content);
+      let doc = "";
+      if (!isEmpty) {
+        doc = await textToDoc(content, {
+          parser,
+          __embeddedInHtml: true,
+        });
+        isEmpty = doc === "";
+      }
+
+      const startingTag = group(printStartingTag(path, print));
+      const endingTag = ["</", node.tag, ">"];
+
+      return group([
+        startingTag,
+        isEmpty ? "" : breakParent,
+        indent([softline, doc]),
+        softline,
+        endingTag,
+      ]);
+    };
+  }
+}
+
 module.exports = {
   print,
   massageAstNode: clean,
+  embed,
 };
