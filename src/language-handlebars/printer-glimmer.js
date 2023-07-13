@@ -195,7 +195,7 @@ function print(path, options, print) {
       return [node.key, "=", print("value")];
     }
     case "TextNode": {
-      if (path.parent.tag === "pre") {
+      if (path.getParentNode().tag === "pre") {
         return node.chars; // Don't format content in <pre>
       }
 
