@@ -31,7 +31,7 @@ const {
   isWhitespaceNode,
 } = require("./utils.js");
 
-const { inferParserByLanguage: inferParser } = require("../common/util.js");
+const { inferParserByLanguage } = require("../common/util.js");
 
 /**
  * @typedef {import("../document").Doc} Doc
@@ -808,7 +808,7 @@ function getCssParser(node, options) {
     return;
   }
 
-  return inferParser(options, { language: "css" });
+  return inferParserByLanguage("css", options);
 }
 
 function getNodeContent(node, options) {
@@ -821,8 +821,8 @@ function getNodeContent(node, options) {
   );
 }
 
-function embed(path, options) {
-  const { node } = path;
+function embed(path, print,textToDoc, options) {
+  const node = path.getValue();
 
   if (node.type === "ElementNode") {
     const parser = getCssParser(node, options);
@@ -832,12 +832,11 @@ function embed(path, options) {
       return;
     }
 
-    return async (textToDoc, print) => {
       const content = getNodeContent(node, options);
       let isEmpty = /^\s*$/.test(content);
       let doc = "";
       if (!isEmpty) {
-        doc = await textToDoc(content, {
+        doc = textToDoc(content, {
           parser,
           __embeddedInHtml: true,
         });
@@ -854,7 +853,7 @@ function embed(path, options) {
         softline,
         endingTag,
       ]);
-    };
+
   }
 }
 
